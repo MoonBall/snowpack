@@ -8,8 +8,8 @@
   },
   "snowpack": {
     "alias": {
-      "react": "preact/compat",
-      "react-dom": "preact/compat"
+      "react-dom": "preact/compat",
+      "react": "preact/compat"
     },
     "install": [
       "react",

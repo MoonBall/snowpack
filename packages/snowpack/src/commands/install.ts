@@ -274,6 +274,7 @@ export async function install(
     logger.error('No "node_modules" directory exists. Did you run "npm install" first?');
     return EMPTY_INSTALL_RETURN;
   }
+  const aliasSpecifierMap = new Map<string, string[]>();
   const allInstallSpecifiers = new Set(
     installTargets
       .filter(
@@ -283,7 +284,16 @@ export async function install(
       .map((dep) => dep.specifier)
       .map((specifier) => {
         const aliasEntry = findMatchingAliasEntry(config, specifier);
-        return aliasEntry && aliasEntry.type === 'package' ? aliasEntry.to : specifier;
+        if (aliasEntry && aliasEntry.type === 'package') {
+          const destSpecifier = specifier.replace(aliasEntry.from, aliasEntry.to);
+          if (!aliasSpecifierMap.get(destSpecifier)) {
+            aliasSpecifierMap.set(destSpecifier, []);
+          }
+          aliasSpecifierMap.get(destSpecifier)!.push(specifier);
+          return destSpecifier;
+        }
+
+        return specifier;
       })
       .sort(),
   );
@@ -308,22 +318,26 @@ export async function install(
     }
     try {
       const {type: targetType, loc: targetLoc} = resolveWebDependency(installSpecifier);
+      let currMapValue = '';
       if (targetType === 'JS') {
         installEntrypoints[targetName] = targetLoc;
-        importMap.imports[installSpecifier] = `./${proxiedName}.js`;
-        Object.entries(installAlias)
-          .filter(([, value]) => value === installSpecifier)
-          .forEach(([key]) => {
-            importMap.imports[key] = `./${targetName}.js`;
-          });
+        currMapValue = `./${proxiedName}.js`;
+        importMap.imports[installSpecifier] = currMapValue;
         installTargetsMap[targetLoc] = installTargets.filter(
           (t) => installSpecifier === t.specifier,
         );
         installResults.push([installSpecifier, 'SUCCESS']);
       } else if (targetType === 'ASSET') {
         assetEntrypoints[targetName] = targetLoc;
-        importMap.imports[installSpecifier] = `./${proxiedName}`;
+        currMapValue = `./${proxiedName}`;
+        importMap.imports[installSpecifier] = currMapValue;
         installResults.push([installSpecifier, 'ASSET']);
+      }
+      const renamedSpecifiers = aliasSpecifierMap.get(installSpecifier);
+      if (renamedSpecifiers && currMapValue) {
+        renamedSpecifiers.forEach((renamedSpecifier) => {
+          importMap.imports[renamedSpecifier] = currMapValue;
+        });
       }
     } catch (err) {
       installResults.push([installSpecifier, 'FAIL']);
