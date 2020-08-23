@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { renderToString } from 'react-dom/server';
 import logo from './logo.svg';
 import './App.css';
 
+console.log(renderToString(<div>1234</div>));
 function App() {
   return (
     <div className="App">
